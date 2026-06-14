@@ -475,12 +475,39 @@ document.addEventListener('DOMContentLoaded', async () => {
         checkDispatchValidity();
     }
 
+    function detectFileCategory(file) {
+        const mime = file.type || '';
+        const name = file.name || '';
+        const ext = name.split('.').pop().toLowerCase();
+
+        if (mime.startsWith('audio/') || ['mp3', 'wav', 'ogg', 'm4a', 'flac', 'aac', 'wma'].includes(ext)) {
+            return 'audio';
+        }
+        if (mime.startsWith('image/') || ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp'].includes(ext)) {
+            return 'image';
+        }
+        return 'file';
+    }
+
     function handleSelectedFile(file) {
         if (file.size > 5 * 1024 * 1024) {
             alert('File exceeds 5MB size limit.');
             resetUploadZone();
             return;
         }
+
+        // Auto-detect and set file category
+        const category = detectFileCategory(file);
+        state.upload.type = category;
+
+        // Update category chips in UI
+        typeChips.forEach(chip => {
+            if (chip.getAttribute('data-type') === category) {
+                chip.classList.add('active');
+            } else {
+                chip.classList.remove('active');
+            }
+        });
 
         state.upload.fileName = file.name;
         state.upload.fileSize = file.size;
