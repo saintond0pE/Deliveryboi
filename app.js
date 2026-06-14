@@ -86,6 +86,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const loginEmailInput = document.getElementById('login-email');
     const loginPasswordInput = document.getElementById('login-password');
     const btnSignin = document.getElementById('btn-signin');
+    const btnMagicLink = document.getElementById('btn-magic-link');
     const authError = document.getElementById('auth-error');
 
     const signupEmailInput = document.getElementById('signup-email');
@@ -228,6 +229,40 @@ document.addEventListener('DOMContentLoaded', async () => {
             authError.style.display = 'block';
             btnSignin.textContent = 'AUTHENTICATE';
             btnSignin.disabled = false;
+        }
+    });
+
+    // Magic Link (Passwordless OTP) Handler
+    btnMagicLink.addEventListener('click', async (e) => {
+        e.preventDefault();
+        const email = loginEmailInput.value.trim();
+        
+        if (!email) {
+            authError.textContent = 'EMAIL ADDRESS REQUIRED FOR MAGIC LINK.';
+            authError.style.display = 'block';
+            return;
+        }
+
+        btnMagicLink.textContent = 'SENDING LINK...';
+        btnMagicLink.disabled = true;
+        authError.style.display = 'none';
+
+        const { error } = await supabase.auth.signInWithOtp({
+            email: email,
+            options: {
+                emailRedirectTo: window.location.origin + window.location.pathname
+            }
+        });
+
+        if (error) {
+            authError.textContent = error.message;
+            authError.style.display = 'block';
+            btnMagicLink.textContent = 'SEND MAGIC LINK (EMAIL OTP)';
+            btnMagicLink.disabled = false;
+        } else {
+            alert('Magic Link sent! Please check your email inbox.');
+            btnMagicLink.textContent = 'SEND MAGIC LINK (EMAIL OTP)';
+            btnMagicLink.disabled = false;
         }
     });
 
