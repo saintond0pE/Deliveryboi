@@ -7,14 +7,14 @@
     <!-- Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="index.css">
     <!-- Supabase JS Client library -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
-    <div class="glow-orb orb-1"></div>
-    <div class="glow-orb orb-2"></div>
+    <div class="cyber-grid"></div>
+    <div class="scanlines"></div>
 
     <div class="app-container">
         
@@ -127,30 +127,54 @@
 
                 <!-- 2. INTRO/DASHBOARD SCREEN -->
                 <section id="screen-intro" class="screen-section">
-                    <div class="intro-hero">
-                        <div class="intro-banner">
-                            <h1>ENCRYPTED<br><span class="text-orange">FILE DELIVERY</span></h1>
-                        </div>
-                        <p class="intro-subtitle">
-                            Securely deliver encrypted packages directly to recipients. Files are encrypted in your browser and stored in Supabase. Your encryption keys never touch the database.
-                        </p>
-                        <div class="intro-actions">
-                            <button id="btn-get-started" class="btn btn-large btn-primary block-shadow-cyan">
-                                DISPATCH A FILE
+                    <div class="dashboard-wrapper">
+                        <!-- Welcome Header -->
+                        <div class="dashboard-header-row">
+                            <div class="welcome-text">
+                                <h1>Delivery Overview</h1>
+                                <p class="welcome-subtitle">Manage, track, and send secure encrypted packages.</p>
+                            </div>
+                            <button id="btn-get-started" class="btn btn-primary btn-glow">
+                                ➕ NEW DISPATCH
                             </button>
+                        </div>
+                        
+                        <!-- Stats Grid -->
+                        <div class="stats-grid">
+                            <div class="stats-card">
+                                <div class="stats-icon-wrapper cyan-glow">📦</div>
+                                <div class="stats-info">
+                                    <span class="stats-label">Total Sent</span>
+                                    <span class="stats-value" id="stats-total-count">0</span>
+                                </div>
+                            </div>
+                            <div class="stats-card">
+                                <div class="stats-icon-wrapper amber-glow">⏳</div>
+                                <div class="stats-info">
+                                    <span class="stats-label">Active Pending</span>
+                                    <span class="stats-value" id="stats-pending-count">0</span>
+                                </div>
+                            </div>
+                            <div class="stats-card">
+                                <div class="stats-icon-wrapper green-glow">✅</div>
+                                <div class="stats-info">
+                                    <span class="stats-label">Received</span>
+                                    <span class="stats-value" id="stats-received-count">0</span>
+                                </div>
+                            </div>
                         </div>
                         
                         <!-- Deployment History Section -->
                         <div class="history-section">
                             <div class="section-title-bar">
-                                <h2>YOUR DISPATCH HISTORY</h2>
+                                <h2>Recent Dispatches</h2>
                             </div>
                             <div class="table-container">
                                 <table id="history-table">
                                     <thead>
                                         <tr>
                                             <th>FILE NAME</th>
-                                            <th>TYPE</th>
+                                            <th>CATEGORY</th>
                                             <th>SIZE</th>
                                             <th>DATE CREATED</th>
                                             <th>STATUS</th>
@@ -227,7 +251,7 @@
 
                 <!-- 4. RECEIVE / DECRYPT SCREEN -->
                 <section id="screen-decrypt" class="screen-section">
-                    <div class="brutalist-card centered-card">
+                    <div class="brutalist-card">
                         <div class="card-header">
                             <span class="card-title">DECRYPT FILE DELIVERY</span>
                         </div>

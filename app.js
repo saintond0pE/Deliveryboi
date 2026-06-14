@@ -103,6 +103,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Intro Screen elements
     const btnGetStarted = document.getElementById('btn-get-started');
     const historyTableBody = document.getElementById('history-table-body');
+    const statsTotalCount = document.getElementById('stats-total-count');
+    const statsPendingCount = document.getElementById('stats-pending-count');
+    const statsReceivedCount = document.getElementById('stats-received-count');
 
     // Create Screen elements
     const typeChips = document.querySelectorAll('.type-chips .chip');
@@ -376,6 +379,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
 
         localKeysCount.textContent = `${data.length} SENT`;
+
+        // Update stats overview counters
+        if (statsTotalCount) statsTotalCount.textContent = data.length;
+        if (statsPendingCount) statsPendingCount.textContent = data.filter(item => !item.is_received).length;
+        if (statsReceivedCount) statsReceivedCount.textContent = data.filter(item => item.is_received).length;
 
         if (data.length === 0) {
             historyTableBody.innerHTML = `
