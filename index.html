@@ -7,15 +7,14 @@
     <!-- Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Space+Grotesk:wght@400;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="index.css">
     <!-- Supabase JS Client library -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
     <div class="cyber-grid"></div>
-    <div class="glow-orb orb-1"></div>
-    <div class="glow-orb orb-2"></div>
+    <div class="scanlines"></div>
 
     <div class="app-container">
         
@@ -23,6 +22,9 @@
         <header class="app-header">
             <div class="header-logo">
                 <span class="logo-accent">▲</span> DELIVERYBOI <span class="logo-sub">// SECURE_ROUTING</span>
+            </div>
+            <div class="header-telemetry">
+                SYS_SECURE: [AES_GCM_256] // BUF_LIMIT: [100MB] // NET_STATUS: [STABLE]
             </div>
             <div class="header-status">
                 <span class="status-pulse"></span> ONLINE
@@ -140,7 +142,25 @@
                                 DISPATCH A FILE
                             </button>
                         </div>
-                        
+                        <!-- Dashboard Stat Blocks -->
+                        <div class="stat-blocks">
+                            <div class="stat-card">
+                                <div class="stat-label">CIPHER PROTOCOL</div>
+                                <div class="stat-value text-orange">AES-GCM-256</div>
+                                <div class="stat-desc">Browser client-side encryption</div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-label">STORAGE STORAGE</div>
+                                <div class="stat-value text-cyan">SUPABASE_BLOB</div>
+                                <div class="stat-desc">Encrypted binary delivery files</div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-label">UPTIME STATUS</div>
+                                <div class="stat-value text-orange">100.00%</div>
+                                <div class="stat-desc">Active secure routing online</div>
+                            </div>
+                        </div>
+
                         <!-- Deployment History Section -->
                         <div class="history-section">
                             <div class="section-title-bar">
