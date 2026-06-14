@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DELIVERYBOI // Secure File Delivery</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Space+Grotesk:wght@400;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="index.css">
+    <!-- Supabase JS Client library -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+    <div class="cyber-grid"></div>
+    <div class="scanlines"></div>
+
+    <div class="app-container">
+        
+        <!-- Persistent Top Header -->
+        <header class="app-header">
+            <div class="header-logo">
+                <span class="logo-accent">▲</span> DELIVERYBOI <span class="logo-sub">// SECURE_ROUTING</span>
+            </div>
+            <div class="header-status">
+                <span class="status-pulse"></span> ONLINE
+            </div>
+            <div class="header-auth" id="header-user-badge" style="display: none;">
+                <span class="user-email" id="header-user-email"></span>
+                <button id="btn-logout" class="btn-text">LOGOUT</button>
+            </div>
+        </header>
+
+        <!-- Main Workspace Grid Layout -->
+        <div class="app-workspace">
+            
+            <!-- Side Navigation Bar -->
+            <aside class="app-sidebar" id="app-sidebar" style="display: none;">
+                <nav class="sidebar-nav">
+                    <button class="nav-item active" id="btn-nav-home">
+                        <span class="nav-icon">▰</span> DASHBOARD
+                    </button>
+                    <button class="nav-item" id="btn-nav-create">
+                        <span class="nav-icon">▲</span> DISPATCH
+                    </button>
+                    <button class="nav-item" id="btn-nav-decrypt">
+                        <span class="nav-icon">▼</span> RECEIVE
+                    </button>
+                </nav>
+                <div class="sidebar-footer">
+                    <div class="meta-item">STATUS: <span class="text-cyan">CONNECTED</span></div>
+                    <div class="meta-item">DELIVERIES: <span class="text-cyan" id="local-keys-count">0 SENT</span></div>
+                </div>
+            </aside>
+
+            <!-- Main Dynamic Content Panel -->
+            <main class="app-content">
+
+                <!-- 1. AUTH SCREEN (LOGIN & SIGNUP) -->
+                <section id="screen-login" class="screen-section active">
+                    <div class="brutalist-card centered-card">
+                        <div class="card-header">
+                            <span class="card-title" id="auth-card-title">SECURE_LOGIN</span>
+                        </div>
+                        <div class="card-body">
+                            <!-- Toggle Auth Forms -->
+                            <div class="auth-tabs">
+                                <button id="tab-login" class="auth-tab active">SIGN IN</button>
+                                <button id="tab-signup" class="auth-tab">SIGN UP</button>
+                            </div>
+
+                            <!-- Login Form -->
+                            <div id="form-signin" class="auth-form-panel active">
+                                <div class="input-group">
+                                    <label for="login-email">EMAIL ADDRESS</label>
+                                    <div class="input-wrapper">
+                                        <span class="input-prefix">@</span>
+                                        <input type="email" id="login-email" placeholder="name@domain.com" required>
+                                    </div>
+                                </div>
+                                <div class="input-group">
+                                    <label for="login-password">PASSWORD</label>
+                                    <div class="input-wrapper">
+                                        <span class="input-prefix">🔑</span>
+                                        <input type="password" id="login-password" placeholder="••••••••" required>
+                                    </div>
+                                    <div class="error-msg" id="auth-error">INVALID EMAIL OR PASSWORD. TRY AGAIN.</div>
+                                </div>
+                                <button id="btn-signin" class="btn btn-primary block-shadow-orange">
+                                    AUTHENTICATE <span class="btn-arrow">➔</span>
+                                </button>
+                            </div>
+
+                            <!-- Signup Form -->
+                            <div id="form-signup" class="auth-form-panel">
+                                <div class="input-group">
+                                    <label for="signup-email">EMAIL ADDRESS</label>
+                                    <div class="input-wrapper">
+                                        <span class="input-prefix">@</span>
+                                        <input type="email" id="signup-email" placeholder="name@domain.com" required>
+                                    </div>
+                                </div>
+                                <div class="input-group">
+                                    <label for="signup-password">PASSWORD</label>
+                                    <div class="input-wrapper">
+                                        <span class="input-prefix">🔑</span>
+                                        <input type="password" id="signup-password" placeholder="Min. 6 characters" required>
+                                    </div>
+                                    <div class="error-msg" id="signup-error">SIGNUP FAILED: PASSWORD TOO WEAK OR EMAIL TAKEN</div>
+                                </div>
+                                <button id="btn-signup-submit" class="btn btn-primary block-shadow-cyan">
+                                    CREATE ACCOUNT <span class="btn-arrow">➔</span>
+                                </button>
+                            </div>
+
+                            <!-- Social Login OAuth buttons -->
+                            <div class="oauth-separator">
+                                <span>OR ACCESS VIA PROVIDER</span>
+                            </div>
+                            <div class="oauth-buttons">
+                                <button id="btn-oauth-google" class="btn btn-secondary block-shadow-cyan oauth-btn">
+                                    GOOGLE
+                                </button>
+                                <button id="btn-oauth-github" class="btn btn-secondary block-shadow-orange oauth-btn">
+                                    GITHUB
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- 2. INTRO/DASHBOARD SCREEN -->
+                <section id="screen-intro" class="screen-section">
+                    <div class="intro-hero">
+                        <div class="intro-banner">
+                            <h1>ENCRYPTED<br><span class="text-orange">FILE DELIVERY</span></h1>
+                        </div>
+                        <p class="intro-subtitle">
+                            Securely deliver encrypted packages directly to recipients. Files are encrypted in your browser and stored in Supabase. Your encryption keys never touch the database.
+                        </p>
+                        <div class="intro-actions">
+                            <button id="btn-get-started" class="btn btn-large btn-primary block-shadow-cyan">
+                                DISPATCH A FILE
+                            </button>
+                        </div>
+                        
+                        <!-- Deployment History Section -->
+                        <div class="history-section">
+                            <div class="section-title-bar">
+                                <h2>YOUR DISPATCH HISTORY</h2>
+                            </div>
+                            <div class="table-container">
+                                <table id="history-table">
+                                    <thead>
+                                        <tr>
+                                            <th>FILE NAME</th>
+                                            <th>TYPE</th>
+                                            <th>SIZE</th>
+                                            <th>DATE CREATED</th>
+                                            <th>STATUS</th>
+                                            <th>ACTION</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="history-table-body">
+                                        <tr>
+                                            <td colspan="6" class="table-empty">NO FILES DISPATCHED YET</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- 3. CREATE SECURE PACKET SCREEN -->
+                <section id="screen-create" class="screen-section">
+                    <div class="brutalist-card">
+                        <div class="card-header">
+                            <span class="card-title">DISPATCH NEW PACKAGE</span>
+                        </div>
+                        <div class="card-body">
+                            <!-- File Type Selector -->
+                            <div class="type-selector-group">
+                                <span class="selector-label">FILE CATEGORY:</span>
+                                <div class="type-chips">
+                                    <button class="chip active" data-type="audio">MUSIC / AUDIO</button>
+                                    <button class="chip" data-type="image">IMAGE</button>
+                                    <button class="chip" data-type="file">FILE / DOCUMENT</button>
+                                </div>
+                            </div>
+
+                            <!-- Upload Zone -->
+                            <div class="upload-zone" id="upload-zone">
+                                <input type="file" id="file-input" style="display: none;">
+                                <div class="upload-inner">
+                                    <span class="upload-icon">▰ ▰ ▰</span>
+                                    <span class="upload-text">DRAG FILE HERE OR <span class="text-orange">CLICK TO BROWSE</span></span>
+                                    <span class="upload-sub" id="file-selected-name">No file selected (Max size: 5MB)</span>
+                                </div>
+                            </div>
+
+                            <!-- Encryption Password -->
+                            <div class="input-group">
+                                <label for="packet-password">DECRYPTION PASSWORD</label>
+                                <div class="input-wrapper">
+                                    <span class="input-prefix">🔒</span>
+                                    <input type="password" id="packet-password" placeholder="Set a secure password for the recipient">
+                                </div>
+                                <span class="input-help">The recipient will need this exact password to unlock and decrypt the file.</span>
+                            </div>
+
+                            <!-- dispatch actions -->
+                            <button id="btn-encrypt-dispatch" class="btn btn-primary block-shadow-orange" disabled>
+                                ENCRYPT & DISPATCH
+                            </button>
+
+                            <!-- Success/Link display area -->
+                            <div id="dispatch-success-container" class="success-panel" style="display: none;">
+                                <div class="success-header">
+                                    <span class="text-cyan">✓ DISPATCH COMPLETE</span>
+                                </div>
+                                <p>Provide this URL and the decryption password to the recipient. The package will remain encrypted in the database.</p>
+                                <div class="link-output-group">
+                                    <input type="text" id="generated-url" readonly>
+                                    <button id="btn-copy-url" class="btn btn-secondary block-shadow-cyan">COPY LINK</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- 4. RECEIVE / DECRYPT SCREEN -->
+                <section id="screen-decrypt" class="screen-section">
+                    <div class="brutalist-card">
+                        <div class="card-header">
+                            <span class="card-title">DECRYPT FILE DELIVERY</span>
+                        </div>
+                        <div class="card-body">
+                            <div class="status-warning-banner">
+                                <span class="warning-light"></span> 
+                                <span>INCOMING DELIVERY DETECTED: <strong class="text-orange" id="decrypt-packet-id">None</strong></span>
+                            </div>
+
+                            <p class="hacker-desc">
+                                Enter the decryption password associated with this delivery to verify and unlock the file payload.
+                            </p>
+
+                            <!-- Decryption Password Input -->
+                            <div class="input-group">
+                                <label for="decrypt-password">DECRYPTION PASSWORD</label>
+                                <div class="input-wrapper">
+                                    <span class="input-prefix">🔑</span>
+                                    <input type="password" id="decrypt-password" placeholder="Enter password">
+                                </div>
+                                <div class="error-msg" id="decrypt-error">DECRYPTION FAILED: WRONG PASSWORD OR CORRUPTED DATA.</div>
+                            </div>
+
+                            <button id="btn-decrypt" class="btn btn-primary block-shadow-cyan">
+                                DECRYPT & OPEN FILE
+                            </button>
+
+                            <!-- Decrypted Content Container -->
+                            <div id="decrypted-payload-container" class="payload-panel" style="display: none;">
+                                <div class="payload-header">
+                                    <span class="text-cyan">🔓 DECRYPTION SUCCESSFUL</span>
+                                </div>
+                                
+                                <div class="payload-viewer">
+                                    <div id="payload-audio-player" class="viewer-module" style="display: none;">
+                                        <div class="audio-player-ui">
+                                            <div class="waveform-animation">
+                                                <span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span>
+                                            </div>
+                                            <div class="player-controls">
+                                                <button id="audio-play-pause">PLAY</button>
+                                                <span id="audio-file-name">Decrypted Audio Track</span>
+                                            </div>
+                                            <audio id="decrypted-audio" controls style="display:none;"></audio>
+                                        </div>
+                                    </div>
+
+                                    <div id="payload-image-viewer" class="viewer-module" style="display: none;">
+                                        <div class="image-frame-scanlines">
+                                            <img id="decrypted-image" src="" alt="Decrypted file">
+                                        </div>
+                                    </div>
+
+                                    <div id="payload-file-downloader" class="viewer-module" style="display: none;">
+                                        <div class="file-download-card">
+                                            <div class="file-meta">
+                                                <span class="file-name" id="decrypted-file-name">download.bin</span>
+                                                <span class="file-size" id="decrypted-file-size">0 KB</span>
+                                            </div>
+                                            <a id="btn-download-file" class="btn btn-secondary block-shadow-cyan" download="decrypted-file">DOWNLOAD FILE</a>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+            </main>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
