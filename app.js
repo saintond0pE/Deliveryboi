@@ -44,6 +44,18 @@ document.addEventListener('DOMContentLoaded', async () => {
         return;
     }
 
+    // Animated Clock in Header
+    const headerClock = document.getElementById('header-clock');
+    if (headerClock) {
+        function updateClock() {
+            const now = new Date();
+            const timeStr = now.toTimeString().split(' ')[0];
+            headerClock.textContent = timeStr;
+        }
+        updateClock();
+        setInterval(updateClock, 1000);
+    }
+
     // Static redirect URL for production scale
     const redirectUrl = 'https://deliveryboi.vercel.app';
 
