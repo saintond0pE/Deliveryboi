@@ -44,10 +44,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         return;
     }
 
-    // Dynamic redirect URL for auth callbacks (falls back to Vercel in production)
-    const redirectUrl = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
-        ? window.location.origin + window.location.pathname
-        : 'https://deliveryboi.vercel.app';
+    // Static redirect URL for production scale
+    const redirectUrl = 'https://deliveryboi.vercel.app';
 
     // Core Application State
     const state = {
@@ -86,22 +84,20 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Auth Screen elements
     const tabLogin = document.getElementById('tab-login');
     const tabSignup = document.getElementById('tab-signup');
+    const tabReceive = document.getElementById('tab-receive');
     const formSignin = document.getElementById('form-signin');
     const formSignup = document.getElementById('form-signup');
     const loginEmailInput = document.getElementById('login-email');
     const loginPasswordInput = document.getElementById('login-password');
     const btnSignin = document.getElementById('btn-signin');
     const btnMagicLink = document.getElementById('btn-magic-link');
+    const btnSkipLogin = document.getElementById('btn-skip-login');
     const authError = document.getElementById('auth-error');
 
     const signupEmailInput = document.getElementById('signup-email');
     const signupPasswordInput = document.getElementById('signup-password');
     const btnSignupSubmit = document.getElementById('btn-signup-submit');
     const signupError = document.getElementById('signup-error');
-
-    // OAuth buttons
-    const btnOauthGoogle = document.getElementById('btn-oauth-google');
-    const btnOauthGithub = document.getElementById('btn-oauth-github');
 
     // Intro Screen elements
     const btnGetStarted = document.getElementById('btn-get-started');
@@ -124,6 +120,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const decryptStatusBanner = document.getElementById('decrypt-status-banner');
     const decryptPasswordInput = document.getElementById('decrypt-password');
     const btnDecrypt = document.getElementById('btn-decrypt');
+    const btnDecryptBackLogin = document.getElementById('btn-decrypt-back-login');
     const decryptError = document.getElementById('decrypt-error');
     const decryptedPayloadContainer = document.getElementById('decrypted-payload-container');
     
@@ -200,6 +197,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             headerUserEmail.textContent = session.user.email;
             headerUserBadge.style.display = 'flex';
             sidebar.style.display = 'flex';
+            if (btnDecryptBackLogin) btnDecryptBackLogin.style.display = 'none';
             
             // Reload user deliveries count & history table
             updateUserHistory();
@@ -213,7 +211,13 @@ document.addEventListener('DOMContentLoaded', async () => {
             state.user = null;
             headerUserBadge.style.display = 'none';
             sidebar.style.display = 'none';
-            showScreen('login');
+            if (btnDecryptBackLogin) btnDecryptBackLogin.style.display = 'block';
+
+            if (incomingDeliveryId) {
+                loadIncomingDelivery(incomingDeliveryId);
+            } else {
+                showScreen('login');
+            }
         }
     }
 
@@ -300,21 +304,35 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     });
 
-    // Social Provider OAuth Logins
-    btnOauthGoogle.addEventListener('click', () => signInWithProvider('google'));
-    btnOauthGithub.addEventListener('click', () => signInWithProvider('github'));
-
-    async function signInWithProvider(provider) {
-        const { error } = await supabase.auth.signInWithOAuth({
-            provider: provider,
-            options: {
-                redirectTo: redirectUrl
-            }
+    // Tab switching for unauthenticated Receive flow
+    if (tabReceive) {
+        tabReceive.addEventListener('click', () => {
+            decryptPackageIdInput.value = '';
+            decryptPasswordInput.value = '';
+            decryptStatusBanner.style.display = 'none';
+            decryptError.style.display = 'none';
+            decryptedPayloadContainer.style.display = 'none';
+            showScreen('decrypt');
         });
-        if (error) {
-            console.error(`Login with ${provider} failed:`, error.message);
-            alert(`Login with ${provider} failed: ${error.message}`);
-        }
+    }
+
+    if (btnSkipLogin) {
+        btnSkipLogin.addEventListener('click', () => {
+            decryptPackageIdInput.value = '';
+            decryptPasswordInput.value = '';
+            decryptStatusBanner.style.display = 'none';
+            decryptError.style.display = 'none';
+            decryptedPayloadContainer.style.display = 'none';
+            showScreen('decrypt');
+        });
+    }
+
+    if (btnDecryptBackLogin) {
+        btnDecryptBackLogin.addEventListener('click', () => {
+            // Remove d parameter from URL to prevent auto-redirecting to decrypt screen on reload/state change
+            window.history.replaceState({}, document.title, window.location.pathname);
+            showScreen('login');
+        });
     }
 
     // Logout handler
@@ -375,7 +393,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             const statusClass = item.is_received ? 'received' : 'pending';
             const statusText = item.is_received ? 'Received' : 'Pending';
             
-            const baseUrl = window.location.origin + window.location.pathname;
+            const baseUrl = 'https://deliveryboi.vercel.app';
             const linkUrl = `${baseUrl}?d=${item.id}`;
 
             const tr = document.createElement('tr');
@@ -611,7 +629,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (error) throw error;
 
             // 4. Construct unique access link
-            const baseUrl = window.location.origin + window.location.pathname;
+            const baseUrl = 'https://deliveryboi.vercel.app';
             const fullUrl = `${baseUrl}?d=${data[0].id}`;
 
             generatedUrlInput.value = fullUrl;
@@ -657,7 +675,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         state.decrypt.packetId = hashId;
         
         // Populate the manual input field with the full URL
-        const baseUrl = window.location.origin + window.location.pathname;
+        const baseUrl = 'https://deliveryboi.vercel.app';
         decryptPackageIdInput.value = `${baseUrl}?d=${hashId}`;
         
         // Fetch specific delivery record from Supabase to show active warning banner
