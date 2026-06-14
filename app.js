@@ -53,6 +53,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         activeScreen: 'login',
         upload: {
             type: 'audio', // default type
+            mode: 'standard', // default mode (standard or anonymous)
             fileData: null, // ArrayBuffer
             fileName: '',
             fileSize: 0,
@@ -109,6 +110,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Create Screen elements
     const typeChips = document.querySelectorAll('.type-chips .chip');
+    const modeChips = document.querySelectorAll('.mode-chips .mode-chip');
+    const modeHelpText = document.getElementById('mode-help-text');
     const uploadZone = document.getElementById('upload-zone');
     const fileInput = document.getElementById('file-input');
     const fileSelectedName = document.getElementById('file-selected-name');
@@ -119,9 +122,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     const btnCopyUrl = document.getElementById('btn-copy-url');
 
     // Decrypt Screen elements
-    const decryptPacketIdText = document.getElementById('decrypt-packet-id');
     const decryptPackageIdInput = document.getElementById('decrypt-package-id-input');
     const decryptStatusBanner = document.getElementById('decrypt-status-banner');
+    const decryptBannerTitle = document.getElementById('decrypt-banner-title');
+    const decryptMetadataBox = document.getElementById('decrypt-metadata-box');
     const decryptPasswordInput = document.getElementById('decrypt-password');
     const btnDecrypt = document.getElementById('btn-decrypt');
     const btnDecryptBackLogin = document.getElementById('btn-decrypt-back-login');
@@ -339,6 +343,23 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     }
 
+    if (modeChips && modeChips.length > 0) {
+        modeChips.forEach(chip => {
+            chip.addEventListener('click', (e) => {
+                modeChips.forEach(c => c.classList.remove('active'));
+                e.target.classList.add('active');
+                const mode = e.target.getAttribute('data-mode');
+                state.upload.mode = mode;
+                
+                if (mode === 'standard') {
+                    modeHelpText.textContent = "Standard mode: Recipient can see the file name and sender before decrypting.";
+                } else {
+                    modeHelpText.textContent = "🔒 Anonymous mode: Sender, filename, and file type are fully encrypted. Zero plaintext stored.";
+                }
+            });
+        });
+    }
+
     // Logout handler
     btnLogout.addEventListener('click', async () => {
         await supabase.auth.signOut();
@@ -553,7 +574,50 @@ document.addEventListener('DOMContentLoaded', async () => {
     // WEB CRYPTO API ENCRYPTION & DECRYPTION
     // -------------------------------------------------------------
     
-    async function deriveKey(password, salt) {
+    // Binary packing helper to embed metadata inside the encrypted file for Anonymous mode
+    function packPayload(metadataJson, fileArrayBuffer) {
+        const enc = new TextEncoder();
+        const metaBuffer = enc.encode(metadataJson);
+        const metaLength = metaBuffer.byteLength;
+
+        const combinedBuffer = new ArrayBuffer(4 + metaLength + fileArrayBuffer.byteLength);
+        const combinedView = new DataView(combinedBuffer);
+        
+        // Write metadata length in the first 4 bytes (little-endian)
+        combinedView.setUint32(0, metaLength, true);
+        
+        // Copy metadata buffer
+        const combinedBytes = new Uint8Array(combinedBuffer);
+        combinedBytes.set(metaBuffer, 4);
+        
+        // Copy file buffer
+        combinedBytes.set(new Uint8Array(fileArrayBuffer), 4 + metaLength);
+        
+        return combinedBuffer;
+    }
+
+    function unpackPayload(combinedArrayBuffer) {
+        const combinedView = new DataView(combinedArrayBuffer);
+        const metaLength = combinedView.getUint32(0, true);
+        
+        const combinedBytes = new Uint8Array(combinedArrayBuffer);
+        
+        // Extract metadata
+        const metaBuffer = combinedBytes.slice(4, 4 + metaLength);
+        const dec = new TextDecoder();
+        const metadataJson = dec.decode(metaBuffer);
+        const metadata = JSON.parse(metadataJson);
+        
+        // Extract file data
+        const fileArrayBuffer = combinedArrayBuffer.slice(4 + metaLength);
+        
+        return {
+            metadata: metadata,
+            fileData: fileArrayBuffer
+        };
+    }
+
+    async function deriveKey(password, salt, iterations = 100000) {
         const enc = new TextEncoder();
         const baseKey = await window.crypto.subtle.importKey(
             'raw',
@@ -566,7 +630,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             {
                 name: 'PBKDF2',
                 salt: salt,
-                iterations: 100000,
+                iterations: iterations,
                 hash: 'SHA-256'
             },
             baseKey,
@@ -583,10 +647,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         return btoa(String.fromCharCode(...new Uint8Array(hash)));
     }
 
-    async function encryptPayload(arrayBuffer, password) {
+    async function encryptPayload(arrayBuffer, password, iterations = 100000) {
         const salt = window.crypto.getRandomValues(new Uint8Array(16));
         const iv = window.crypto.getRandomValues(new Uint8Array(12));
-        const key = await deriveKey(password, salt);
+        const key = await deriveKey(password, salt, iterations);
         
         const encryptedBuffer = await window.crypto.subtle.encrypt(
             { name: 'AES-GCM', iv: iv },
@@ -604,12 +668,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         };
     }
 
-    async function decryptPayload(encryptedArrayBuffer, password, saltBase64, ivBase64) {
+    async function decryptPayload(encryptedArrayBuffer, password, saltBase64, ivBase64, iterations = 100000) {
         const salt = new Uint8Array(atob(saltBase64).split('').map(c => c.charCodeAt(0)));
         const iv = new Uint8Array(atob(ivBase64).split('').map(c => c.charCodeAt(0)));
         const ciphertext = new Uint8Array(encryptedArrayBuffer);
 
-        const key = await deriveKey(password, salt);
+        const key = await deriveKey(password, salt, iterations);
         
         const decryptedBuffer = await window.crypto.subtle.decrypt(
             { name: 'AES-GCM', iv: iv },
@@ -654,8 +718,29 @@ document.addEventListener('DOMContentLoaded', async () => {
         btnEncryptDispatch.disabled = true;
 
         try {
+            const isAnonymous = (state.upload.mode === 'anonymous');
+            const iterations = isAnonymous ? 500000 : 100000;
+
+            let finalPayload = fileData;
+            let fileNameDb = fileName;
+            let fileTypeDb = fileType;
+            let fileSizeDb = fileSize;
+
+            if (isAnonymous) {
+                const metaObj = {
+                    name: fileName,
+                    size: fileSize,
+                    mime: state.upload.fileMime,
+                    type: fileType
+                };
+                finalPayload = packPayload(JSON.stringify(metaObj), fileData);
+                fileNameDb = 'Secure Package';
+                fileTypeDb = 'file';
+                fileSizeDb = finalPayload.byteLength;
+            }
+
             // 1. Client-side browser encrypt
-            const encrypted = await encryptPayload(fileData, password);
+            const encrypted = await encryptPayload(finalPayload, password, iterations);
             
             // 2. Hash password for double verification verification
             const pwHash = await hashPassword(password);
@@ -666,13 +751,15 @@ document.addEventListener('DOMContentLoaded', async () => {
                 .insert([
                     {
                         sender_id: state.user.id,
-                        file_name: fileName,
-                        file_type: fileType,
-                        file_size: fileSize,
+                        sender_email: isAnonymous ? 'Anonymous' : state.user.email,
+                        file_name: fileNameDb,
+                        file_type: fileTypeDb,
+                        file_size: fileSizeDb,
                         password_hash: pwHash,
                         salt: encrypted.salt,
                         iv: encrypted.iv,
-                        is_received: false
+                        is_received: false,
+                        is_anonymous: isAnonymous
                     }
                 ])
                 .select();
@@ -766,7 +853,26 @@ document.addEventListener('DOMContentLoaded', async () => {
         
         if (!error && data) {
             state.decrypt.packetData = data;
-            decryptPacketIdText.textContent = data.file_name;
+            
+            // Customize metadata presentation based on mode
+            if (data.is_anonymous) {
+                decryptBannerTitle.textContent = 'INCOMING ANONYMOUS DELIVERY';
+                decryptMetadataBox.innerHTML = `
+                    <div style="display: flex; align-items: center; gap: 6px;">
+                        <span>🔒</span> 
+                        <span>Anonymous package (Sender and file metadata are fully encrypted)</span>
+                    </div>
+                `;
+            } else {
+                decryptBannerTitle.textContent = 'INCOMING SECURE DELIVERY';
+                decryptMetadataBox.innerHTML = `
+                    <div><strong>Sender:</strong> ${escapeHtml(data.sender_email || 'Unknown')}</div>
+                    <div><strong>File Name:</strong> ${escapeHtml(data.file_name || 'Unnamed')}</div>
+                    <div><strong>File Size:</strong> ${formatBytes(data.file_size || 0)}</div>
+                    <div><strong>Category:</strong> ${(data.file_type || 'file').toUpperCase()}</div>
+                `;
+            }
+            
             decryptStatusBanner.style.display = 'flex';
         } else {
             decryptStatusBanner.style.display = 'none';
@@ -779,6 +885,51 @@ document.addEventListener('DOMContentLoaded', async () => {
         decryptError.style.display = 'none';
         decryptedPayloadContainer.style.display = 'none';
     }
+
+    // Input listener to dynamically fetch and display warning banner when manually pasting a link or code
+    decryptPackageIdInput.addEventListener('input', async () => {
+        const inputVal = decryptPackageIdInput.value.trim();
+        if (!inputVal) {
+            decryptStatusBanner.style.display = 'none';
+            return;
+        }
+
+        const hashId = extractUuid(inputVal);
+        // UUID is 36 characters (8-4-4-4-12)
+        if (hashId && hashId.length === 36) {
+            const { data, error } = await supabase
+                .from('deliveries')
+                .select('*')
+                .eq('id', hashId)
+                .single();
+
+            if (!error && data) {
+                state.decrypt.packetData = data;
+                if (data.is_anonymous) {
+                    decryptBannerTitle.textContent = 'INCOMING ANONYMOUS DELIVERY';
+                    decryptMetadataBox.innerHTML = `
+                        <div style="display: flex; align-items: center; gap: 6px;">
+                            <span>🔒</span> 
+                            <span>Anonymous package (Sender and file metadata are fully encrypted)</span>
+                        </div>
+                    `;
+                } else {
+                    decryptBannerTitle.textContent = 'INCOMING SECURE DELIVERY';
+                    decryptMetadataBox.innerHTML = `
+                        <div><strong>Sender:</strong> ${escapeHtml(data.sender_email || 'Unknown')}</div>
+                        <div><strong>File Name:</strong> ${escapeHtml(data.file_name || 'Unnamed')}</div>
+                        <div><strong>File Size:</strong> ${formatBytes(data.file_size || 0)}</div>
+                        <div><strong>Category:</strong> ${(data.file_type || 'file').toUpperCase()}</div>
+                    `;
+                }
+                decryptStatusBanner.style.display = 'flex';
+            } else {
+                decryptStatusBanner.style.display = 'none';
+            }
+        } else {
+            decryptStatusBanner.style.display = 'none';
+        }
+    });
 
     // Decrypt button event handler
     btnDecrypt.addEventListener('click', async () => {
@@ -817,6 +968,10 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
 
             let decryptedBlob;
+            let fileTypeToDisplay = packet.file_type;
+            let fileNameToDisplay = packet.file_name;
+            let fileSizeToDisplay = packet.file_size;
+            let fileMimeToDisplay = packet.file_mime;
 
             if (packet.storage_path) {
                 // 1. Download encrypted binary from Supabase Storage
@@ -832,15 +987,28 @@ document.addEventListener('DOMContentLoaded', async () => {
 
                 // 3. Decrypt ArrayBuffer in-browser
                 btnDecrypt.textContent = 'DECRYPTING...';
+                const iterations = packet.is_anonymous ? 500000 : 100000;
                 const decryptedArrayBuffer = await decryptPayload(
                     encryptedArrayBuffer,
                     password,
                     packet.salt,
-                    packet.iv
+                    packet.iv,
+                    iterations
                 );
 
+                let finalDecryptedBuffer = decryptedArrayBuffer;
+
+                if (packet.is_anonymous) {
+                    const unpacked = unpackPayload(decryptedArrayBuffer);
+                    fileTypeToDisplay = unpacked.metadata.type;
+                    fileNameToDisplay = unpacked.metadata.name;
+                    fileSizeToDisplay = unpacked.metadata.size;
+                    fileMimeToDisplay = unpacked.metadata.mime;
+                    finalDecryptedBuffer = unpacked.fileData;
+                }
+
                 // Create Blob out of decrypted ArrayBuffer
-                decryptedBlob = new Blob([decryptedArrayBuffer], { type: packet.file_mime || 'application/octet-stream' });
+                decryptedBlob = new Blob([finalDecryptedBuffer], { type: fileMimeToDisplay || 'application/octet-stream' });
             } else {
                 // Fallback for legacy Base64 string database uploads
                 btnDecrypt.textContent = 'DECRYPTING...';
@@ -868,7 +1036,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             // Create object URL for memory-efficient loading (revoked on next display)
             const objectUrl = URL.createObjectURL(decryptedBlob);
 
-            displayPayload(packet.file_type, objectUrl, packet.file_name, packet.file_size);
+            displayPayload(fileTypeToDisplay, objectUrl, fileNameToDisplay, fileSizeToDisplay);
             btnDecrypt.textContent = 'DECRYPTED';
 
         } catch (error) {

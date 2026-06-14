@@ -209,6 +209,16 @@
                                 </div>
                             </div>
 
+                            <!-- Delivery Mode Selector -->
+                            <div class="type-selector-group">
+                                <span class="selector-label">DELIVERY MODE:</span>
+                                <div class="mode-chips">
+                                    <button class="mode-chip active" data-mode="standard">STANDARD</button>
+                                    <button class="mode-chip" data-mode="anonymous">🔒 ANONYMOUS (ZERO-KNOWLEDGE)</button>
+                                </div>
+                                <span class="input-help" id="mode-help-text">Standard mode: Recipient can see the file name and sender before decrypting.</span>
+                            </div>
+
                             <!-- Upload Zone -->
                             <div class="upload-zone" id="upload-zone">
                                 <input type="file" id="file-input" style="display: none;">
@@ -256,9 +266,14 @@
                             <span class="card-title">DECRYPT FILE DELIVERY</span>
                         </div>
                         <div class="card-body">
-                            <div class="status-warning-banner" id="decrypt-status-banner" style="display: none;">
-                                <span class="warning-light"></span> 
-                                <span>INCOMING DELIVERY DETECTED: <strong class="text-orange" id="decrypt-packet-id">None</strong></span>
+                            <div class="status-warning-banner" id="decrypt-status-banner" style="display: none; flex-direction: column; align-items: flex-start; gap: 8px;">
+                                <div style="display: flex; align-items: center; gap: 12px; width: 100%;">
+                                    <span class="warning-light"></span> 
+                                    <span style="font-weight: 600;" id="decrypt-banner-title">INCOMING SECURE DELIVERY</span>
+                                </div>
+                                <div id="decrypt-metadata-box" style="font-size: 12px; color: var(--text-grey); display: flex; flex-direction: column; gap: 4px; padding-left: 20px; width: 100%;">
+                                    <!-- Dynamic metadata loaded here -->
+                                </div>
                             </div>
 
                             <p class="hacker-desc">
