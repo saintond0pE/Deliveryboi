@@ -44,6 +44,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         return;
     }
 
+    // Dynamic redirect URL for auth callbacks (falls back to Vercel in production)
+    const redirectUrl = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+        ? window.location.origin + window.location.pathname
+        : 'https://deliveryboi.vercel.app';
+
     // Core Application State
     const state = {
         user: null,
@@ -252,7 +257,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const { error } = await supabase.auth.signInWithOtp({
             email: email,
             options: {
-                emailRedirectTo: window.location.origin + window.location.pathname
+                emailRedirectTo: redirectUrl
             }
         });
 
@@ -303,7 +308,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const { error } = await supabase.auth.signInWithOAuth({
             provider: provider,
             options: {
-                redirectTo: window.location.origin + window.location.pathname
+                redirectTo: redirectUrl
             }
         });
         if (error) {
