@@ -53,14 +53,15 @@ document.addEventListener('DOMContentLoaded', async () => {
         activeScreen: 'login',
         upload: {
             type: 'audio', // default type
-            fileData: null,
+            fileData: null, // ArrayBuffer
             fileName: '',
             fileSize: 0,
             fileMime: ''
         },
         decrypt: {
             packetId: null,
-            packetData: null
+            packetData: null,
+            activeObjectUrl: null
         }
     };
 
@@ -471,7 +472,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         state.upload.fileName = '';
         state.upload.fileSize = 0;
         state.upload.fileMime = '';
-        fileSelectedName.textContent = 'No file selected (Max size: 5MB)';
+        fileSelectedName.textContent = 'No file selected (Large files supported)';
         checkDispatchValidity();
     }
 
@@ -490,8 +491,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     function handleSelectedFile(file) {
-        if (file.size > 5 * 1024 * 1024) {
-            alert('File exceeds 5MB size limit.');
+        // Support files up to 100MB
+        if (file.size > 100 * 1024 * 1024) {
+            alert('File exceeds 100MB size limit.');
             resetUploadZone();
             return;
         }
@@ -515,11 +517,11 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         const reader = new FileReader();
         reader.onload = function(e) {
-            state.upload.fileData = e.target.result; // Base64 Data URL
+            state.upload.fileData = e.target.result; // ArrayBuffer
             fileSelectedName.innerHTML = `✓ SELECTED: <strong class="text-cyan">${file.name}</strong> (${formatBytes(file.size)})`;
             checkDispatchValidity();
         };
-        reader.readAsDataURL(file);
+        reader.readAsArrayBuffer(file);
     }
 
     function checkDispatchValidity() {
@@ -573,30 +575,45 @@ document.addEventListener('DOMContentLoaded', async () => {
         return btoa(String.fromCharCode(...new Uint8Array(hash)));
     }
 
-    async function encryptPayload(base64Data, password) {
+    async function encryptPayload(arrayBuffer, password) {
         const salt = window.crypto.getRandomValues(new Uint8Array(16));
         const iv = window.crypto.getRandomValues(new Uint8Array(12));
         const key = await deriveKey(password, salt);
         
-        const enc = new TextEncoder();
         const encryptedBuffer = await window.crypto.subtle.encrypt(
             { name: 'AES-GCM', iv: iv },
             key,
-            enc.encode(base64Data)
+            arrayBuffer
         );
 
         const saltBase64 = btoa(String.fromCharCode(...salt));
         const ivBase64 = btoa(String.fromCharCode(...iv));
-        const cipherBase64 = btoa(String.fromCharCode(...new Uint8Array(encryptedBuffer)));
 
         return {
             salt: saltBase64,
             iv: ivBase64,
-            ciphertext: cipherBase64
+            encryptedBuffer: encryptedBuffer // ArrayBuffer
         };
     }
 
-    async function decryptPayload(ciphertextBase64, password, saltBase64, ivBase64) {
+    async function decryptPayload(encryptedArrayBuffer, password, saltBase64, ivBase64) {
+        const salt = new Uint8Array(atob(saltBase64).split('').map(c => c.charCodeAt(0)));
+        const iv = new Uint8Array(atob(ivBase64).split('').map(c => c.charCodeAt(0)));
+        const ciphertext = new Uint8Array(encryptedArrayBuffer);
+
+        const key = await deriveKey(password, salt);
+        
+        const decryptedBuffer = await window.crypto.subtle.decrypt(
+            { name: 'AES-GCM', iv: iv },
+            key,
+            ciphertext
+        );
+
+        return decryptedBuffer; // ArrayBuffer of original binary file
+    }
+
+    // Fallback for legacy Base64 string decrypt from DB
+    async function decryptPayloadLegacy(ciphertextBase64, password, saltBase64, ivBase64) {
         const salt = new Uint8Array(atob(saltBase64).split('').map(c => c.charCodeAt(0)));
         const iv = new Uint8Array(atob(ivBase64).split('').map(c => c.charCodeAt(0)));
         const ciphertext = new Uint8Array(atob(ciphertextBase64).split('').map(c => c.charCodeAt(0)));
@@ -621,7 +638,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         
         const password = packetPasswordInput.value;
         const fileType = state.upload.type;
-        const fileData = state.upload.fileData; // base64
+        const fileData = state.upload.fileData; // ArrayBuffer
         const fileName = state.upload.fileName;
         const fileSize = state.upload.fileSize;
 
@@ -635,8 +652,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             // 2. Hash password for double verification verification
             const pwHash = await hashPassword(password);
 
-            // 3. Save entry to Supabase deliveries table
-            const { data, error } = await supabase
+            // 3. Save entry to Supabase deliveries table (generate UUID)
+            const { data, error: dbError } = await supabase
                 .from('deliveries')
                 .insert([
                     {
@@ -644,7 +661,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                         file_name: fileName,
                         file_type: fileType,
                         file_size: fileSize,
-                        encrypted_data: encrypted.ciphertext,
                         password_hash: pwHash,
                         salt: encrypted.salt,
                         iv: encrypted.iv,
@@ -653,11 +669,39 @@ document.addEventListener('DOMContentLoaded', async () => {
                 ])
                 .select();
 
-            if (error) throw error;
+            if (dbError) throw dbError;
 
-            // 4. Construct unique access link
+            const deliveryId = data[0].id;
+            const storagePath = `${deliveryId}.enc`;
+
+            // 4. Upload encrypted binary Blob to Supabase Storage
+            btnEncryptDispatch.textContent = 'UPLOADING TO STORAGE...';
+            const encryptedBlob = new Blob([encrypted.encryptedBuffer], { type: 'application/octet-stream' });
+            
+            const { error: uploadError } = await supabase.storage
+                .from('deliveries')
+                .upload(storagePath, encryptedBlob, {
+                    cacheControl: '3600',
+                    upsert: true
+                });
+
+            if (uploadError) {
+                // Rollback database record if upload fails
+                await supabase.from('deliveries').delete().eq('id', deliveryId);
+                throw uploadError;
+            }
+
+            // 5. Update database entry with storage path
+            const { error: updateError } = await supabase
+                .from('deliveries')
+                .update({ storage_path: storagePath })
+                .eq('id', deliveryId);
+
+            if (updateError) throw updateError;
+
+            // 6. Construct unique access link
             const baseUrl = 'https://deliveryboi.vercel.app';
-            const fullUrl = `${baseUrl}?d=${data[0].id}`;
+            const fullUrl = `${baseUrl}?d=${deliveryId}`;
 
             generatedUrlInput.value = fullUrl;
             dispatchSuccessContainer.style.display = 'flex';
@@ -764,13 +808,43 @@ document.addEventListener('DOMContentLoaded', async () => {
                 throw new Error("Incorrect decryption password.");
             }
 
-            // Client-side Decrypt
-            const decryptedBase64 = await decryptPayload(
-                packet.encrypted_data,
-                password,
-                packet.salt,
-                packet.iv
-            );
+            let decryptedBlob;
+
+            if (packet.storage_path) {
+                // 1. Download encrypted binary from Supabase Storage
+                btnDecrypt.textContent = 'DOWNLOADING FILE...';
+                const { data: encryptedBlob, error: downloadError } = await supabase.storage
+                    .from('deliveries')
+                    .download(packet.storage_path);
+
+                if (downloadError) throw downloadError;
+
+                // 2. Convert Blob to ArrayBuffer
+                const encryptedArrayBuffer = await encryptedBlob.arrayBuffer();
+
+                // 3. Decrypt ArrayBuffer in-browser
+                btnDecrypt.textContent = 'DECRYPTING...';
+                const decryptedArrayBuffer = await decryptPayload(
+                    encryptedArrayBuffer,
+                    password,
+                    packet.salt,
+                    packet.iv
+                );
+
+                // Create Blob out of decrypted ArrayBuffer
+                decryptedBlob = new Blob([decryptedArrayBuffer], { type: packet.file_mime || 'application/octet-stream' });
+            } else {
+                // Fallback for legacy Base64 string database uploads
+                btnDecrypt.textContent = 'DECRYPTING...';
+                const decryptedBase64 = await decryptPayloadLegacy(
+                    packet.encrypted_data,
+                    password,
+                    packet.salt,
+                    packet.iv
+                );
+                // Convert Base64 data URL to Blob
+                decryptedBlob = await (await fetch(decryptedBase64)).blob();
+            }
 
             // Successfully Decrypted! Mark package received in Supabase
             const { error: updateError } = await supabase
@@ -783,7 +857,10 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             if (updateError) console.warn("Failed to update status:", updateError);
 
-            displayPayload(packet.file_type, decryptedBase64, packet.file_name, packet.file_size);
+            // Create object URL for memory-efficient loading (revoked on next display)
+            const objectUrl = URL.createObjectURL(decryptedBlob);
+
+            displayPayload(packet.file_type, objectUrl, packet.file_name, packet.file_size);
             btnDecrypt.textContent = 'DECRYPTED';
 
         } catch (error) {
@@ -796,29 +873,35 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     });
 
-    function displayPayload(type, base64Url, name, size) {
+    function displayPayload(type, objectUrl, name, size) {
         payloadAudioPlayer.style.display = 'none';
         payloadImageViewer.style.display = 'none';
         payloadFileDownloader.style.display = 'none';
         decryptedAudio.pause();
 
+        // Release old object URL to free browser memory
+        if (state.decrypt.activeObjectUrl) {
+            URL.revokeObjectURL(state.decrypt.activeObjectUrl);
+        }
+        state.decrypt.activeObjectUrl = objectUrl;
+
         decryptedPayloadContainer.style.display = 'block';
 
         if (type === 'audio') {
             payloadAudioPlayer.style.display = 'block';
-            decryptedAudio.src = base64Url;
+            decryptedAudio.src = objectUrl;
             document.getElementById('audio-file-name').textContent = `${name} (${formatBytes(size)})`;
             audioPlayPause.textContent = 'PLAY';
         } 
         else if (type === 'image') {
             payloadImageViewer.style.display = 'block';
-            decryptedImage.src = base64Url;
+            decryptedImage.src = objectUrl;
         } 
         else {
             payloadFileDownloader.style.display = 'block';
             decryptedFileName.textContent = name;
             decryptedFileSize.textContent = formatBytes(size);
-            btnDownloadFile.href = base64Url;
+            btnDownloadFile.href = objectUrl;
             btnDownloadFile.download = name;
         }
     }
