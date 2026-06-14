@@ -240,14 +240,23 @@
                             <span class="card-title">DECRYPT FILE DELIVERY</span>
                         </div>
                         <div class="card-body">
-                            <div class="status-warning-banner">
+                            <div class="status-warning-banner" id="decrypt-status-banner" style="display: none;">
                                 <span class="warning-light"></span> 
                                 <span>INCOMING DELIVERY DETECTED: <strong class="text-orange" id="decrypt-packet-id">None</strong></span>
                             </div>
 
                             <p class="hacker-desc">
-                                Enter the decryption password associated with this delivery to verify and unlock the file payload.
+                                Enter the delivery link or package code, along with the decryption password, to unlock the file payload.
                             </p>
+
+                            <!-- Delivery Link / Code Input -->
+                            <div class="input-group">
+                                <label for="decrypt-package-id-input">DELIVERY LINK OR PACKAGE CODE</label>
+                                <div class="input-wrapper">
+                                    <span class="input-prefix">🔗</span>
+                                    <input type="text" id="decrypt-package-id-input" placeholder="Paste delivery URL or enter package code">
+                                </div>
+                            </div>
 
                             <!-- Decryption Password Input -->
                             <div class="input-group">

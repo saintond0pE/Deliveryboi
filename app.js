@@ -115,6 +115,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Decrypt Screen elements
     const decryptPacketIdText = document.getElementById('decrypt-packet-id');
+    const decryptPackageIdInput = document.getElementById('decrypt-package-id-input');
+    const decryptStatusBanner = document.getElementById('decrypt-status-banner');
     const decryptPasswordInput = document.getElementById('decrypt-password');
     const btnDecrypt = document.getElementById('btn-decrypt');
     const decryptError = document.getElementById('decrypt-error');
@@ -319,7 +321,16 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Navigation triggers
     btnNavHome.addEventListener('click', () => { if (state.user) showScreen('intro'); });
     btnNavCreate.addEventListener('click', () => { if (state.user) showScreen('create'); });
-    btnNavDecrypt.addEventListener('click', () => { if (state.user) showScreen('decrypt'); });
+    btnNavDecrypt.addEventListener('click', () => { 
+        if (state.user) {
+            decryptPackageIdInput.value = '';
+            decryptPasswordInput.value = '';
+            decryptStatusBanner.style.display = 'none';
+            decryptError.style.display = 'none';
+            decryptedPayloadContainer.style.display = 'none';
+            showScreen('decrypt'); 
+        }
+    });
     btnGetStarted.addEventListener('click', () => showScreen('create'));
 
     // -------------------------------------------------------------
@@ -627,29 +638,41 @@ document.addEventListener('DOMContentLoaded', async () => {
     // RECEIVER PAGE FLOW
     // -------------------------------------------------------------
     
+    function extractUuid(input) {
+        if (!input) return '';
+        try {
+            const url = new URL(input);
+            return url.searchParams.get('d') || input.trim();
+        } catch(e) {
+            return input.trim();
+        }
+    }
+
     async function loadIncomingDelivery(hashId) {
         state.decrypt.packetId = hashId;
         
-        // Fetch specific delivery record from Supabase
+        // Populate the manual input field with the full URL
+        const baseUrl = window.location.origin + window.location.pathname;
+        decryptPackageIdInput.value = `${baseUrl}?d=${hashId}`;
+        
+        // Fetch specific delivery record from Supabase to show active warning banner
         const { data, error } = await supabase
             .from('deliveries')
             .select('*')
             .eq('id', hashId)
             .single();
         
-        if (error || !data) {
-            console.error("Fetch delivery failed", error);
-            alert(`Delivery packet '${hashId}' was not found or has been deleted.`);
-            window.history.replaceState({}, document.title, window.location.pathname);
-            showScreen('intro');
-            return;
+        if (!error && data) {
+            state.decrypt.packetData = data;
+            decryptPacketIdText.textContent = data.file_name;
+            decryptStatusBanner.style.display = 'flex';
+        } else {
+            decryptStatusBanner.style.display = 'none';
         }
 
-        state.decrypt.packetData = data;
-        decryptPacketIdText.textContent = data.file_name;
         showScreen('decrypt');
         
-        // Reset view
+        // Reset password and errors
         decryptPasswordInput.value = '';
         decryptError.style.display = 'none';
         decryptedPayloadContainer.style.display = 'none';
@@ -658,19 +681,37 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Decrypt button event handler
     btnDecrypt.addEventListener('click', async () => {
         const password = decryptPasswordInput.value;
-        const packet = state.decrypt.packetData;
+        const inputVal = decryptPackageIdInput.value.trim();
 
-        if (!packet) return;
+        if (!inputVal) {
+            decryptError.textContent = 'PLEASE ENTER A DELIVERY LINK OR PACKAGE CODE.';
+            decryptError.style.display = 'block';
+            return;
+        }
 
         decryptError.style.display = 'none';
         btnDecrypt.textContent = 'DECRYPTING...';
         btnDecrypt.disabled = true;
 
         try {
+            const hashId = extractUuid(inputVal);
+            if (!hashId) throw new Error("Could not parse package ID");
+
+            // Fetch specific delivery record dynamically (handles manual pasting)
+            const { data: packet, error: fetchError } = await supabase
+                .from('deliveries')
+                .select('*')
+                .eq('id', hashId)
+                .single();
+
+            if (fetchError || !packet) {
+                throw new Error("Invalid delivery link or code. Package not found.");
+            }
+
             // Verify password hash
             const inputPwHash = await hashPassword(password);
             if (inputPwHash !== packet.password_hash) {
-                throw new Error("Password authentication failed");
+                throw new Error("Incorrect decryption password.");
             }
 
             // Client-side Decrypt
@@ -697,6 +738,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         } catch (error) {
             console.error('Decryption failed:', error);
+            decryptError.textContent = error.message || 'DECRYPTION FAILED. WRONG PASSWORD OR CORRUPT DATA.';
             decryptError.style.display = 'block';
             decryptedPayloadContainer.style.display = 'none';
             btnDecrypt.textContent = 'DECRYPT & OPEN FILE';
