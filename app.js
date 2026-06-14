@@ -352,9 +352,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                 state.upload.mode = mode;
                 
                 if (mode === 'standard') {
-                    modeHelpText.textContent = "Standard mode: Recipient can see the file name and sender before decrypting.";
+                    modeHelpText.textContent = "Standard mode: Recipient can see the file name, category, size, and sender email before decrypting.";
                 } else {
-                    modeHelpText.textContent = "🔒 Anonymous mode: Sender, filename, and file type are fully encrypted. Zero plaintext stored.";
+                    modeHelpText.textContent = "🔒 Anonymous mode: There will be no user info or file name shown. Senders' info and file metadata are fully encrypted and hidden from the recipient until decryption.";
                 }
             });
         });
